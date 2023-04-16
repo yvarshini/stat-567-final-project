@@ -44,6 +44,7 @@ res = tibble(model = c("Ridge Regression", "LASSO Regression", "XGBoost"), accur
 
 ```{r}
 ## ridge and lasso regression
+set.seed(123)
 
 # creating a copy of the data to use for regression
 # and filtering only the favorite horses
@@ -102,7 +103,7 @@ title("LASSO Regression", line = -0.01)
 
 ```{r}
 ## XGBoost
-
+set.seed(123)
 # preparing the dataset
 # getting only the favorite horses and remove null values
 horses.xgb <- filter(horses, favorite_odd == 1) %>% na.omit()
@@ -118,12 +119,22 @@ x = model.matrix(won ~ ., horses.xgb)[, -1]
 y.tr = horses.xgb[train, ]$won
 y.test = horses.xgb[-train, ]$won
 
-# create an input xgb.Dmatrix
-X <- xgb.DMatrix(x)
-y <- recode(labels$labels,"'Won'=1; 'Lost'=0")
+#define final training and testing sets
+xgb_train <- xgb.DMatrix(data = x[train, ], label = y.tr)
+xgb_test <- xgb.DMatrix(data = x[-train, ], label = y.test)
 
-# model
-param = list(max_depth = 8, objective = "binary:logistic", eval_metric = "auc")
-horses.xgb <- xgboost(X, y, nround = 2, max_depth = 8, objective = "binary:logistic", eval_metric = "auc")
+#defining a watchlist
+watchlist <- list(train = xgb_train, test = xgb_test)
+
+# training the model
+model <- xgb.train(data = xgb_train, max.depth = 4, watchlist = watchlist, nrounds = 100)
+which(model$evaluation_log[, 3] == min(model$evaluation_log[, 3])) # getting the index of the minimum test MSE
+
+# final model
+horses.xgb <- xgboost(data = x[-train, ], label = y.test, max.depth = 4, nrounds = 6, verbose = 0)
+
+summary(horses.xgb)
+importance = xgb.importance(colnames(model), model = horses.xgb)
+xgb.plot.importance(importance, main = "Variable Importance Plot for XGBoost")
 ```
 
