@@ -17,6 +17,9 @@ library(tidyverse)
 library(glmnet)
 library(readxl)
 library(xgboost)
+library(ROCR)
+library(pROC)
+library(caret)
 ```
 
 ```{r}
@@ -34,7 +37,6 @@ res = tibble(model = c("Ridge Regression", "LASSO Regression", "XGBoost"), accur
 ```
 
 ```{r}
-## ridge and lasso regression
 set.seed(123)
 
 # checking for null values
@@ -54,7 +56,7 @@ y.test = horses[-train, ]$won
 
 ```{r}
 ## ridge regression
-
+set.seed(123)
 # training and cross-validation
 grid=10^seq(10, -2, length=100) # grid for lambdas
 horses.ridge <- cv.glmnet(x[train, ], y.tr, alpha = 0, lambda = grid)
@@ -68,11 +70,32 @@ title("Ridge Regression", line = -0.01)
 
 print(horses.ridge)
 coef(horses.ridge)
+
+# confusion matrix
+ridge.CM <- caret::confusionMatrix(table(horses.ridge.preds, y.test))
+print("Ridge Regression Confusion Matrix")
+print(ridge.CM)
+
+# ROC curve
+ridge.ROC <- roc(as.numeric(horses.ridge.preds), as.numeric(y.test))
+ridge.AUC <- auc(ridge.ROC)
+print("Ridge Regression AUC")
+print(ridge.AUC)
+
+# Sensitivity
+ridge.sensitivity <- ridge.CM$byClass[1]
+print("Ridge Regression Sensitivity")
+print(ridge.sensitivity)
+
+# Specificity
+ridge.specificity <- ridge.CM$byClass[2]
+print("Ridge Regression Specificity")
+print(ridge.specificity)
 ```
 
 ```{r}
 ## lasso regression
-
+set.seed(123)
 # training and cross-validation
 horses.lasso <- cv.glmnet(x[train, ], y.tr, alpha = 1, lambda = grid)
 # prediction using the best lambda
@@ -85,12 +108,33 @@ title("LASSO Regression", line = -0.01)
 
 print(horses.lasso)
 coef(horses.lasso)
+
+# confusion matrix
+lasso.CM1 <- caret::confusionMatrix(table(horses.lasso.preds, y.test))
+print(lasso.CM1)
+# since all the predictions are 0, we need to construct the matrix manually
+lasso.CM <- as.table(rbind(c(827, 343), c(0, 0)))
+dimnames(lasso.CM) <- list(horses.lasso.preds = c("0", "1"), y.test = c("0", "1"))
+print("LASSO Regression Confusion Matrix")
+print(lasso.CM)
+
+# ROC curve
+# no ROC curve for LASSO since the 'response' must have 2 levels. All the predicted values by LASSO are 0s.
+
+# Sensitivity (TP/(TP + FN))
+lasso.sensitivity <- lasso.CM[4]/(lasso.CM[4] + lasso.CM[3])
+print("LASSO Regression Sensitivity")
+print(lasso.sensitivity)
+
+# Specificity (TN/(TN + FP))
+lasso.specificity <- lasso.CM[1]/(lasso.CM[1] + lasso.CM[2])
+print("LASSO Regression Specificity")
+print(lasso.specificity)
 ```
 
 ```{r}
 ## XGBoost
 set.seed(123)
-
 #define final training and testing sets
 xgb_train <- xgb.DMatrix(data = x[train, ], label = y.tr)
 xgb_test <- xgb.DMatrix(data = x[-train, ], label = y.test)
@@ -109,6 +153,27 @@ importance_matrix
 
 # plot variable importance
 xgb.plot.importance(importance_matrix[1:5,])
+
+# confusion matrix
+xgb.CM <- caret::confusionMatrix(table(as.numeric(pred > 0.5), y.test))
+print("XGBoost Confusion Matrix")
+print(xgb.CM)
+
+# ROC curve
+xgb.ROC <- roc(as.numeric(pred > 0.5), as.numeric(y.test))
+xgb.AUC <- auc(xgb.ROC)
+print("XGBoost AUC")
+print(xgb.AUC)
+
+# Sensitivity
+xgb.sensitivity <- xgb.CM$byClass[1]
+print("XGBoost Sensitivity")
+print(xgb.sensitivity)
+
+# Specificity
+xgb.specificity <- xgb.CM$byClass[2]
+print("XGBoost Specificity")
+print(xgb.specificity)
 ```
 
 ```{r}
