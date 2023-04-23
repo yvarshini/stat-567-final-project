@@ -2,7 +2,9 @@
 title: "SMC Final Project"
 author: "Varshini Yanamandra"
 date: "2023-04-16"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -20,19 +22,8 @@ library(xgboost)
 ```{r}
 # reading the data from an excel file
 suppressWarnings({
-  horses <- read_excel('HorseDataset.xlsx')
+  horses <- read_excel('HorseFavoriteDataset.xlsx')
 })
-
-head(horses)
-
-# we do not need the first 4 columns
-horses <- horses[, -c(1:4)]
-
-# replacing 'missing' values with more sensible values for the analysis
-# and converting the remaining non-null values to integers where applicable
-horses$Past_Performance <- gsub('missing', '0', horses$Past_Performance) %>% as.integer()
-horses$days_difference <- gsub('missing', '0', horses$days_difference) %>% as.integer()
-horses$horse_sex_value <- gsub('missing', NA, horses$horse_sex_value) %>% as.integer()
 
 head(horses)
 ```
@@ -46,48 +37,40 @@ res = tibble(model = c("Ridge Regression", "LASSO Regression", "XGBoost"), accur
 ## ridge and lasso regression
 set.seed(123)
 
-# creating a copy of the data to use for regression
-# and filtering only the favorite horses
-horses.regr <- horses %>% filter(favorite_odd == 1)
-
-# converting categorical data columns into factors - manual encoding
-horses.regr$horse_country <- as.factor(horses.regr$horse_country)
-horses.regr$horse_type <- as.factor(horses.regr$horse_type)
-horses.regr$horse_gear <- as.factor(horses.regr$horse_gear)
-horses.regr$date <- as.factor(horses.regr$date)
-horses.regr$venue <- as.factor(horses.regr$venue)
-horses.regr$config <- as.factor(horses.regr$config)
-horses.regr$going <- as.factor(horses.regr$going)
-horses.regr$day_of_week <- as.factor(horses.regr$day_of_week)
-horses.regr$New_Horse_Sex <- as.factor(horses.regr$New_Horse_Sex)
-# checking the new classes
-head(horses.regr)
-
-# removing rows with null values
-horses.regr <- na.omit(horses.regr)
+# checking for null values
+sum(is.na(horses)) # 0
 
 # splitting the data into training (80%) and test(20%) datasets
-train = sample(nrow(horses.regr), nrow(horses.regr) * 0.8) # training indices
-length(train)/nrow(horses.regr) # checking the split percentage
+train = sample(nrow(horses), nrow(horses) * 0.8) # training indices
+length(train)/nrow(horses) # checking the split percentage
 
 # creating model matrices
-x = model.matrix(won ~ ., horses.regr)[, -1]
-y.tr = horses.regr[train, ]$won
-y.test = horses.regr[-train, ]$won
+x_original = model.matrix(won ~ ., horses)[, -1]
+# scaling the data
+x = scale(x_original, center = TRUE, scale = TRUE)
+y.tr = horses[train, ]$won
+y.test = horses[-train, ]$won
+```
 
+```{r}
 ## ridge regression
 
 # training and cross-validation
-grid=10^seq(10,-2,length=100) # grid for lambdas
+grid=10^seq(10, -2, length=100) # grid for lambdas
 horses.ridge <- cv.glmnet(x[train, ], y.tr, alpha = 0, lambda = grid)
 # prediction using the best lambda
 horses.ridge.preds <- predict(horses.ridge, s = horses.ridge$lambda.min, newx = x[-train, ])
 horses.ridge.preds <- ifelse(horses.ridge.preds < 0.5, 0, 1)
-res[1, 2] = sum(horses.ridge.preds == y.test)/length(y.test) # accuracy
+res[1, 2] = mean(horses.ridge.preds == y.test) # accuracy
 # plot to see how MSE varies with lambda
 plot(horses.ridge)
 title("Ridge Regression", line = -0.01)
 
+print(horses.ridge)
+coef(horses.ridge)
+```
+
+```{r}
 ## lasso regression
 
 # training and cross-validation
@@ -95,46 +78,40 @@ horses.lasso <- cv.glmnet(x[train, ], y.tr, alpha = 1, lambda = grid)
 # prediction using the best lambda
 horses.lasso.preds <- predict(horses.lasso, s = horses.lasso$lambda.min, newx = x[-train, ])
 horses.lasso.preds <- ifelse(horses.lasso.preds < 0.5, 0, 1)
-res[2, 2] = sum(horses.lasso.preds == y.test)/length(y.test) # accuracy
+res[2, 2] = mean((horses.lasso.preds == y.test)) # accuracy
 # plot to see how MSE varies with lambda
 plot(horses.lasso)
 title("LASSO Regression", line = -0.01)
+
+print(horses.lasso)
+coef(horses.lasso)
 ```
 
 ```{r}
 ## XGBoost
 set.seed(123)
-# preparing the dataset
-# getting only the favorite horses and remove null values
-horses.xgb <- filter(horses, favorite_odd == 1) %>% na.omit()
-
-# xgboost does not need manual encoding
-
-# splitting the data into training (80%) and test(20%) datasets
-train = sample(nrow(horses.xgb), nrow(horses.xgb) * 0.8) # training indices
-length(train)/nrow(horses.xgb) # checking the split percentage
-
-# creating model matrices
-x = model.matrix(won ~ ., horses.xgb)[, -1]
-y.tr = horses.xgb[train, ]$won
-y.test = horses.xgb[-train, ]$won
 
 #define final training and testing sets
 xgb_train <- xgb.DMatrix(data = x[train, ], label = y.tr)
 xgb_test <- xgb.DMatrix(data = x[-train, ], label = y.test)
 
-#defining a watchlist
-watchlist <- list(train = xgb_train, test = xgb_test)
+model <- xgboost(data = xgb_train, nround = 100, objective = "binary:logistic")
 
-# training the model
-model <- xgb.train(data = xgb_train, max.depth = 4, watchlist = watchlist, nrounds = 100)
-which(model$evaluation_log[, 3] == min(model$evaluation_log[, 3])) # getting the index of the minimum test MSE
+# generate predictions for our held-out testing data
+pred <- predict(model, xgb_test)
 
-# final model
-horses.xgb <- xgboost(data = x[-train, ], label = y.test, max.depth = 4, nrounds = 6, verbose = 0)
+# get the accuracy
+res[3, 2] <- mean(as.numeric(pred > 0.5) == y.test)
 
-summary(horses.xgb)
-importance = xgb.importance(colnames(model), model = horses.xgb)
-xgb.plot.importance(importance, main = "Variable Importance Plot for XGBoost")
+# variable importance matrix
+importance_matrix = xgb.importance(colnames(xgb_train), model = model)
+importance_matrix
+
+# plot variable importance
+xgb.plot.importance(importance_matrix[1:5,])
+```
+
+```{r}
+res
 ```
 
