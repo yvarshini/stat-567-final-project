@@ -154,7 +154,7 @@ importance_matrix = xgb.importance(colnames(xgb_train), model = model)
 importance_matrix
 
 # plot variable importance
-xgb.plot.importance(importance_matrix[1:5,])
+xgb.plot.importance(importance_matrix[1:5,], main = "Variable Importance for XGBoost")
 
 # confusion matrix
 xgb.CM <- caret::confusionMatrix(table(as.numeric(pred > 0.5), y.test))
