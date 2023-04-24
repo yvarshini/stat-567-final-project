@@ -78,6 +78,7 @@ print(ridge.CM)
 
 # ROC curve
 ridge.ROC <- roc(as.numeric(horses.ridge.preds), as.numeric(y.test))
+plot(ridge.ROC, main = "Ridge ROC")
 ridge.AUC <- auc(ridge.ROC)
 print("Ridge Regression AUC")
 print(ridge.AUC)
@@ -110,8 +111,9 @@ print(horses.lasso)
 coef(horses.lasso)
 
 # confusion matrix
-lasso.CM1 <- caret::confusionMatrix(table(horses.lasso.preds, y.test))
-print(lasso.CM1)
+# the next line gives an error
+#lasso.CM1 <- caret::confusionMatrix(table(horses.lasso.preds, y.test))
+#print(lasso.CM1)
 # since all the predictions are 0, we need to construct the matrix manually
 lasso.CM <- as.table(rbind(c(827, 343), c(0, 0)))
 dimnames(lasso.CM) <- list(horses.lasso.preds = c("0", "1"), y.test = c("0", "1"))
@@ -161,6 +163,7 @@ print(xgb.CM)
 
 # ROC curve
 xgb.ROC <- roc(as.numeric(pred > 0.5), as.numeric(y.test))
+plot(xgb.ROC, main = "XGBoost ROC")
 xgb.AUC <- auc(xgb.ROC)
 print("XGBoost AUC")
 print(xgb.AUC)
