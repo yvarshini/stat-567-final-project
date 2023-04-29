@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(glmnet)
 library(readxl)
+library(psych)
 library(xgboost)
 library(ROCR)
 library(pROC)
@@ -30,6 +31,7 @@ suppressWarnings({
 
 head(horses)
 ```
+
 
 ```{r}
 # creating a dataframe to hold all the accuracies
@@ -46,10 +48,17 @@ sum(is.na(horses)) # 0
 train = sample(nrow(horses), nrow(horses) * 0.8) # training indices
 length(train)/nrow(horses) # checking the split percentage
 
+train_input <- horses[train, ]
+str(train_input)
+test_input <- horses[-train, ]
+
+pred_output <- as.factor(horses$won)
+train_output <- pred_output[ train]
+test_output <-  pred_output[-train]
+
 # creating model matrices
-x_original = model.matrix(won ~ ., horses)[, -1]
-# scaling the data
-x = scale(x_original, center = TRUE, scale = TRUE)
+x_test = model.matrix(test_output ~ ., data = test_input[, -1])
+x_train = model.matrix(train_output ~ ., data = train_input[, -1])
 y.tr = horses[train, ]$won
 y.test = horses[-train, ]$won
 ```
@@ -59,9 +68,9 @@ y.test = horses[-train, ]$won
 set.seed(123)
 # training and cross-validation
 grid=10^seq(10, -2, length=100) # grid for lambdas
-horses.ridge <- cv.glmnet(x[train, ], y.tr, alpha = 0, lambda = grid)
+horses.ridge <- cv.glmnet(x_train, y.tr, alpha = 0, lambda = grid)
 # prediction using the best lambda
-horses.ridge.preds <- predict(horses.ridge, s = horses.ridge$lambda.min, newx = x[-train, ])
+horses.ridge.preds <- predict(horses.ridge, s = horses.ridge$lambda.min, newx = x_test)
 horses.ridge.preds <- ifelse(horses.ridge.preds < 0.5, 0, 1)
 res[1, 2] = mean(horses.ridge.preds == y.test) # accuracy
 # plot to see how MSE varies with lambda
@@ -98,9 +107,9 @@ print(ridge.specificity)
 ## lasso regression
 set.seed(123)
 # training and cross-validation
-horses.lasso <- cv.glmnet(x[train, ], y.tr, alpha = 1, lambda = grid)
+horses.lasso <- cv.glmnet(x_train, y.tr, alpha = 1, lambda = grid)
 # prediction using the best lambda
-horses.lasso.preds <- predict(horses.lasso, s = horses.lasso$lambda.min, newx = x[-train, ])
+horses.lasso.preds <- predict(horses.lasso, s = horses.lasso$lambda.min, newx = x_test)
 horses.lasso.preds <- ifelse(horses.lasso.preds < 0.5, 0, 1)
 res[2, 2] = mean((horses.lasso.preds == y.test)) # accuracy
 # plot to see how MSE varies with lambda
@@ -138,8 +147,8 @@ print(lasso.specificity)
 ## XGBoost
 set.seed(123)
 #define final training and testing sets
-xgb_train <- xgb.DMatrix(data = x[train, ], label = y.tr)
-xgb_test <- xgb.DMatrix(data = x[-train, ], label = y.test)
+xgb_train <- xgb.DMatrix(data = x_train, label = y.tr)
+xgb_test <- xgb.DMatrix(data = x_test, label = y.test)
 
 model <- xgboost(data = xgb_train, nround = 100, objective = "binary:logistic")
 
