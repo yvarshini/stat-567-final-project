@@ -57,8 +57,8 @@ train_output <- pred_output[ train]
 test_output <-  pred_output[-train]
 
 # creating model matrices
-x_test = model.matrix(test_output ~ ., data = test_input)
-x_train = model.matrix(train_output ~ ., data = train_input)
+x_test = model.matrix(test_output ~ ., data = test_input[, -1])
+x_train = model.matrix(train_output ~ ., data = train_input[, -1])
 y.tr = horses[train, ]$won
 y.test = horses[-train, ]$won
 ```
@@ -121,14 +121,14 @@ coef(horses.lasso)
 
 # confusion matrix
 # the next line gives an error
-lasso.CM1 <- caret::confusionMatrix(table(horses.lasso.preds, y.test))
-print("LASSO Regression Confusion Matrix")
-print(lasso.CM1)
-# since all the predictions are 0, we need to construct the matrix manually
-#lasso.CM <- as.table(rbind(c(827, 343), c(0, 0)))
-#dimnames(lasso.CM) <- list(horses.lasso.preds = c("0", "1"), y.test = c("0", "1"))
+#lasso.CM1 <- caret::confusionMatrix(table(horses.lasso.preds, y.test))
 #print("LASSO Regression Confusion Matrix")
-#print(lasso.CM)
+#print(lasso.CM1)
+# since all the predictions are 0, we need to construct the matrix manually
+lasso.CM <- as.table(rbind(c(827, 343), c(0, 0)))
+dimnames(lasso.CM) <- list(horses.lasso.preds = c("0", "1"), y.test = c("0", "1"))
+print("LASSO Regression Confusion Matrix")
+print(lasso.CM)
 
 # ROC curve
 # no ROC curve for LASSO since the 'response' must have 2 levels. All the predicted values by LASSO are 0s.
