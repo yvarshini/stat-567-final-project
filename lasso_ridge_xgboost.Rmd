@@ -25,7 +25,7 @@ library(caret)
 ```{r}
 # reading the data from an excel file
 suppressWarnings({
-  horses <- read_excel('HorseFavoriteDataset.xlsx')
+  horses <- read_excel('Horse.xlsx')
 })
 
 head(horses)
@@ -154,7 +154,7 @@ importance_matrix = xgb.importance(colnames(xgb_train), model = model)
 importance_matrix
 
 # plot variable importance
-xgb.plot.importance(importance_matrix[1:5,], main = "Variable Importance for XGBoost")
+xgb.plot.importance(importance_matrix, main = "Variable Importance for XGBoost")
 
 # confusion matrix
 xgb.CM <- caret::confusionMatrix(table(as.numeric(pred > 0.5), y.test))
